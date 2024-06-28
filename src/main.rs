@@ -1,3 +1,4 @@
+use hermes::ThreadPool;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
@@ -10,10 +11,12 @@ fn main() {
 fn bind_port() {
     let connection = TcpListener::bind("127.0.0.1:8080").unwrap();
 
+    let thread_pool = ThreadPool::new(4);
+
     for stream in connection.incoming() {
         let tcp_stream = stream.unwrap();
 
-        handle_connection(tcp_stream);
+        thread_pool.spawn(|| handle_connection(tcp_stream));
     }
 }
 
