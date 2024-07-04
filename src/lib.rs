@@ -8,12 +8,12 @@ type Job = Box<dyn FnOnce() + Send + 'static>;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    queue_tx: mpsc::Sender<Job>,
+    queue_tx: Option<mpsc::Sender<Job>>,
 }
 
 struct Worker {
     id: usize,
-    thread: JoinHandle<()>,
+    thread: Option<JoinHandle<()>>,
 }
 
 impl ThreadPool {
@@ -30,7 +30,7 @@ impl ThreadPool {
 
         ThreadPool {
             workers,
-            queue_tx: tx,
+            queue_tx: Some(tx),
         }
     }
 
@@ -39,19 +39,38 @@ impl ThreadPool {
         J: FnOnce() + Send + 'static,
     {
         let job = Box::new(job);
-        self.queue_tx.send(job).unwrap();
+        self.queue_tx.as_ref().unwrap().send(job).unwrap();
+    }
+}
+
+impl Drop for ThreadPool {
+    fn drop(&mut self) {
+        drop(self.queue_tx.take());
+
+        for worker in &mut self.workers {
+            println!("Waiting for thread {} to finish", worker.id);
+            worker.thread.take().unwrap().join().unwrap();
+        }
     }
 }
 
 impl Worker {
     fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
         let thread = thread::spawn(move || loop {
-            let job = receiver.lock().unwrap().recv().unwrap();
-
-            println!("Thread {id} is currently executing");
-
-            job();
+            let job = receiver.lock().unwrap().recv();
+            match job {
+                Ok(job) => {
+                    println!("Thread {id} is currently serving");
+                    job();
+                }
+                Err(_) => {
+                    println!("Stopping thread {id}");
+                }
+            };
         });
-        Worker { id, thread }
+        Worker {
+            id,
+            thread: Some(thread),
+        }
     }
 }

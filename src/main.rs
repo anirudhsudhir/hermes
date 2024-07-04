@@ -9,7 +9,7 @@ fn main() {
 }
 
 fn bind_port() {
-    let connection = TcpListener::bind("127.0.0.1:8080").unwrap();
+    let connection = TcpListener::bind("127.0.0.1:8000").unwrap();
 
     let thread_pool = ThreadPool::new(4);
 
@@ -39,18 +39,22 @@ fn handle_connection(mut tcp_stream: TcpStream) {
 
     let path = Path::new(&filepath);
 
+    let status_line;
+    let mut contents;
+
     if path.is_file() {
         println!("Serving \"{filepath}\"");
-        let status_line = "HTTP/1.1 200 OK";
-        let mut contents = fs::read(filepath).unwrap();
-        let contents_len = contents.len();
-
-        let msg = format!("{status_line}\r\nContent-Length: {contents_len}\r\n\r\n");
-        let mut response = msg.as_bytes().to_vec();
-        response.append(&mut contents);
-
-        tcp_stream.write_all(&response).unwrap();
+        status_line = "HTTP/1.1 200 OK";
+        contents = fs::read(filepath).unwrap();
     } else {
         println!("Requested resource not found \"{filepath}\"");
+        status_line = "HTTP/1.1 404 NOT FOUND";
+        contents = "Requested resource not found".as_bytes().to_vec();
     }
+
+    let contents_len = contents.len();
+    let msg = format!("{status_line}\r\nContent-Length: {contents_len}\r\n\r\n");
+    let mut response = msg.as_bytes().to_vec();
+    response.append(&mut contents);
+    tcp_stream.write_all(&response).unwrap();
 }
