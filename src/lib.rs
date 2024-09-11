@@ -60,7 +60,6 @@ impl Worker {
             let job = receiver.lock().unwrap().recv();
             match job {
                 Ok(job) => {
-                    println!("Thread {id} is currently serving");
                     job();
                 }
                 Err(_) => {

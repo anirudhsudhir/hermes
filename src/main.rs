@@ -1,15 +1,42 @@
+use chrono::prelude::*;
+
 use hermes::ThreadPool;
-use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::Path;
+use std::{env, fs};
 
 fn main() {
-    bind_port();
+    let mut args = env::args();
+    args.next();
+
+    let port = match args.next() {
+        Some(port) => str::parse::<i32>(&port).expect("Invalid port number"),
+        None => 8000,
+    };
+    let bind_addr = format!("0.0.0.0:{port}");
+
+    println!(
+        r#"
+ __                                                 
+/\ \                                                
+\ \ \___      __   _ __    ___ ___      __    ____  
+ \ \  _ `\  /'__`\/\`'__\/' __` __`\  /'__`\ /',__\ 
+  \ \ \ \ \/\  __/\ \ \/ /\ \/\ \/\ \/\  __//\__, `\
+   \ \_\ \_\ \____\\ \_\ \ \_\ \_\ \_\ \____\/\____/
+    \/_/\/_/\/____/ \/_/  \/_/\/_/\/_/\/____/\/___/ 
+                                                    
+                                                    
+    Hermes: A concurrent web-server written in Rust
+        "#,
+    );
+    println!("Serving HTTP over port {port} (http://0.0.0.0:{port}/):");
+
+    bind_port(&bind_addr);
 }
 
-fn bind_port() {
-    let connection = TcpListener::bind("127.0.0.1:8000").unwrap();
+fn bind_port(bind_addr: &str) {
+    let connection = TcpListener::bind(bind_addr).unwrap();
 
     let thread_pool = ThreadPool::new(4);
 
@@ -42,14 +69,15 @@ fn handle_connection(mut tcp_stream: TcpStream) {
     let status_line;
     let mut contents;
 
+    let dt = Local::now().format("%Y-%m-%d %H:%M:%S");
     if path.is_file() {
-        println!("Serving \"{filepath}\"");
+        println!("[{dt}] \"{request_line}\" 200");
         status_line = "HTTP/1.1 200 OK";
         contents = fs::read(filepath).unwrap();
     } else {
-        println!("Requested resource not found \"{filepath}\"");
+        println!("[{dt}] ERROR \"{request_line}\" 404");
         status_line = "HTTP/1.1 404 NOT FOUND";
-        contents = "Requested resource not found".as_bytes().to_vec();
+        contents = "ERROR: Requested resource not found".as_bytes().to_vec();
     }
 
     let contents_len = contents.len();
